@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  velov-radar:
+    image: ghcr.io/ijaouani/velov-radar:latest
+    container_name: velov-radar
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      # Mount the local users.json file into the container
+      # so that data persists across container restarts
+      - ./users.json:/app/users.json
+
