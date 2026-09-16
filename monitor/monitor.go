@@ -97,13 +97,24 @@ func (m *Monitor) check() {
 
 	subs := m.store.GetAll()
 	if len(subs) == 0 {
+		// Clear states so we don't keep stale data if everyone unsubscribes
+		m.states = make(map[int]*StationState)
 		return // No users subscribed yet
 	}
 
 	// Figure out which stations are being monitored
 	monitoredStations := make(map[int][]int64) // stationID -> []chatID
-	for chatID, stationID := range subs {
-		monitoredStations[stationID] = append(monitoredStations[stationID], chatID)
+	for chatID, stationIDs := range subs {
+		for _, stationID := range stationIDs {
+			monitoredStations[stationID] = append(monitoredStations[stationID], chatID)
+		}
+	}
+
+	// Clean up unmonitored stations from state
+	for stationID := range m.states {
+		if _, ok := monitoredStations[stationID]; !ok {
+			delete(m.states, stationID)
+		}
 	}
 
 	for stationID, chatIDs := range monitoredStations {
