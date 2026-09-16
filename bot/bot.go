@@ -1,11 +1,11 @@
 package bot
 
 import (
-	"fmt"
 	"log"
 	"strconv"
 	"strings"
 
+	"velov-radar/messages"
 	"velov-radar/monitor"
 	"velov-radar/notifier"
 	"velov-radar/store"
@@ -37,38 +37,48 @@ func (b *Bot) Listen() {
 		args := strings.TrimSpace(update.Message.CommandArguments())
 
 		if command == "add" || command == "start" {
+			if command == "start" {
+				b.store.Clear(chatID)
+			}
+
 			if args == "" {
-				b.notifier.SendTo(chatID, "❌ Please specify a station, for example: /add 10023")
+				if command == "start" {
+					b.notifier.SendTo(chatID, messages.MsgWelcome)
+				} else {
+					b.notifier.SendTo(chatID, messages.ErrAddMissingStation)
+				}
 				continue
 			}
 
-			stationID, err := strconv.Atoi(args)
-			if err != nil {
-				b.notifier.SendTo(chatID, "❌ Invalid station number. Example: /add 10023")
-				continue
+			for _, arg := range strings.Fields(args) {
+				stationID, err := strconv.Atoi(arg)
+				if err != nil {
+					b.notifier.SendTo(chatID, messages.ErrAddInvalidStation)
+					continue
+				}
+				b.handleAdd(chatID, stationID)
 			}
-
-			b.handleAdd(chatID, stationID)
 		} else if command == "remove" {
 			if args == "" {
-				b.notifier.SendTo(chatID, "❌ Please specify a station, for example: /remove 10023")
+				b.notifier.SendTo(chatID, messages.ErrRemoveMissingStation)
 				continue
 			}
 
-			stationID, err := strconv.Atoi(args)
-			if err != nil {
-				b.notifier.SendTo(chatID, "❌ Invalid station number. Example: /remove 10023")
-				continue
+			for _, arg := range strings.Fields(args) {
+				stationID, err := strconv.Atoi(arg)
+				if err != nil {
+					b.notifier.SendTo(chatID, messages.ErrRemoveInvalidStation)
+					continue
+				}
+				b.store.Remove(chatID, stationID)
+				b.notifier.SendTo(chatID, messages.MsgStationRemoved(stationID))
+				log.Printf("User %d removed station %d", chatID, stationID)
 			}
-
-			b.store.Remove(chatID, stationID)
-			b.notifier.SendTo(chatID, fmt.Sprintf("✅ Station %d removed from your watch list.", stationID))
-			log.Printf("User %d removed station %d", chatID, stationID)
 		} else if command == "list" {
 			b.handleList(chatID)
 		} else if command == "stop" {
 			b.store.Clear(chatID)
-			b.notifier.SendTo(chatID, "✅ You have been successfully unsubscribed from all stations. Use /add <station> to restart.")
+			b.notifier.SendTo(chatID, messages.MsgUnsubscribedAll)
 			log.Printf("User %d unsubscribed from all stations", chatID)
 		}
 	}
@@ -78,11 +88,11 @@ func (b *Bot) handleAdd(chatID int64, stationID int) {
 	targetStation, err := b.monitor.GetStation(stationID)
 	if err != nil {
 		if err.Error() == "station not found" {
-			b.notifier.SendTo(chatID, "❌ Station "+strconv.Itoa(stationID)+" not found. Please check the number.")
+			b.notifier.SendTo(chatID, messages.ErrStationNotFound(stationID))
 		} else {
 			// API down fallback
 			b.store.Add(chatID, stationID)
-			b.notifier.SendTo(chatID, "✅ Great, I am now monitoring station "+strconv.Itoa(stationID)+"! (Current status unavailable)")
+			b.notifier.SendTo(chatID, messages.MsgMonitoringWithoutStatus(stationID))
 			log.Printf("User %d subscribed to station %d without current status", chatID, stationID)
 		}
 		return
@@ -92,8 +102,7 @@ func (b *Bot) handleAdd(chatID int64, stationID int) {
 	meca := targetStation.MainStands.Availabilities.MechanicalBikes
 
 	b.store.Add(chatID, stationID)
-	msg := fmt.Sprintf("✅ Great, I am now monitoring station %s (%d)!\n\nCurrent availability:\n⚡ Electric: %d\n🚲 Mechanical: %d", targetStation.Name, stationID, elec, meca)
-	b.notifier.SendTo(chatID, msg)
+	b.notifier.SendTo(chatID, messages.MsgMonitoringWithStatus(targetStation.Name, elec, meca))
 	log.Printf("User %d subscribed to station %d", chatID, stationID)
 }
 
@@ -101,20 +110,20 @@ func (b *Bot) handleList(chatID int64) {
 	subs := b.store.GetAll()
 	stations, ok := subs[chatID]
 	if !ok || len(stations) == 0 {
-		b.notifier.SendTo(chatID, "You are not monitoring any stations right now. Use /add <station> to add one.")
+		b.notifier.SendTo(chatID, messages.MsgNoMonitoredStations)
 		return
 	}
 
 	var lines []string
-	lines = append(lines, "📋 **Your Monitored Stations:**\n")
+	lines = append(lines, messages.MsgListHeader)
 	for _, stationID := range stations {
 		st, err := b.monitor.GetStation(stationID)
 		if err != nil {
-			lines = append(lines, fmt.Sprintf("• Station %d (status unavailable)", stationID))
+			lines = append(lines, messages.MsgListStationUnavailable(stationID))
 		} else {
 			elec := st.MainStands.Availabilities.ElectricalBikes
 			meca := st.MainStands.Availabilities.MechanicalBikes
-			lines = append(lines, fmt.Sprintf("• %s (%d)\n  ⚡ %d | 🚲 %d", st.Name, stationID, elec, meca))
+			lines = append(lines, messages.MsgListStation(st.Name, elec, meca))
 		}
 	}
 

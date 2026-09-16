@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"velov-radar/messages"
 	"velov-radar/notifier"
 	"velov-radar/store"
 	"velov-radar/velov"
@@ -145,15 +146,15 @@ func (m *Monitor) check() {
 
 		// Check transitions
 		if state.HasElec && !hasElec {
-			m.notifyAll(chatIDs, fmt.Sprintf("🔴 No more electric Velo'v at station %s (%d).", targetStation.Name, stationID))
+			m.notifyAll(chatIDs, messages.NotifyElecEmpty(targetStation.Name))
 		} else if !state.HasElec && hasElec {
-			m.notifyAll(chatIDs, fmt.Sprintf("🟢 Electric Velo'v available at station %s (%d)!", targetStation.Name, stationID))
+			m.notifyAll(chatIDs, messages.NotifyElecAvailable(targetStation.Name))
 		}
 
 		if state.HasMeca && !hasMeca {
-			m.notifyAll(chatIDs, fmt.Sprintf("🔴 No more mechanical Velo'v at station %s (%d).", targetStation.Name, stationID))
+			m.notifyAll(chatIDs, messages.NotifyMecaEmpty(targetStation.Name))
 		} else if !state.HasMeca && hasMeca {
-			m.notifyAll(chatIDs, fmt.Sprintf("🟢 Mechanical Velo'v available at station %s (%d)!", targetStation.Name, stationID))
+			m.notifyAll(chatIDs, messages.NotifyMecaAvailable(targetStation.Name))
 		}
 
 		// Update state
