@@ -1,15 +1,13 @@
 package monitor
 
 import (
-	"fmt"
 	"log"
-	"sync"
 	"time"
 
 	"velov-radar/messages"
 	"velov-radar/notifier"
+	"velov-radar/stationcache"
 	"velov-radar/store"
-	"velov-radar/velov"
 )
 
 type StationState struct {
@@ -18,24 +16,20 @@ type StationState struct {
 }
 
 type Monitor struct {
-	client       *velov.Client
+	cache        *stationcache.Cache
 	notifier     *notifier.TelegramNotifier
 	store        *store.Store
 	pollInterval time.Duration
 	states       map[int]*StationState
-
-	mu           sync.RWMutex
-	stationCache map[int]*velov.Station
 }
 
-func NewMonitor(client *velov.Client, notif *notifier.TelegramNotifier, store *store.Store, interval time.Duration) *Monitor {
+func NewMonitor(cache *stationcache.Cache, notif *notifier.TelegramNotifier, store *store.Store, interval time.Duration) *Monitor {
 	return &Monitor{
-		client:       client,
+		cache:        cache,
 		notifier:     notif,
 		store:        store,
 		pollInterval: interval,
 		states:       make(map[int]*StationState),
-		stationCache: make(map[int]*velov.Station),
 	}
 }
 
@@ -51,47 +45,8 @@ func (m *Monitor) Start() {
 	}
 }
 
-func (m *Monitor) refreshCache() error {
-	stations, err := m.client.FetchStations()
-	if err != nil {
-		return err
-	}
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	for i := range stations {
-		m.stationCache[stations[i].Number] = &stations[i]
-	}
-	return nil
-}
-
-func (m *Monitor) GetStation(stationID int) (*velov.Station, error) {
-	m.mu.RLock()
-	targetStation, ok := m.stationCache[stationID]
-	m.mu.RUnlock()
-
-	if ok {
-		return targetStation, nil
-	}
-
-	// Cache miss, force refresh
-	if err := m.refreshCache(); err != nil {
-		return nil, err
-	}
-
-	m.mu.RLock()
-	targetStation, ok = m.stationCache[stationID]
-	m.mu.RUnlock()
-
-	if ok {
-		return targetStation, nil
-	}
-
-	return nil, fmt.Errorf("station not found")
-}
-
 func (m *Monitor) check() {
-	if err := m.refreshCache(); err != nil {
+	if err := m.cache.Refresh(); err != nil {
 		log.Printf("Error fetching stations: %v", err)
 		return
 	}
@@ -119,11 +74,8 @@ func (m *Monitor) check() {
 	}
 
 	for stationID, chatIDs := range monitoredStations {
-		m.mu.RLock()
-		targetStation, ok := m.stationCache[stationID]
-		m.mu.RUnlock()
-
-		if !ok {
+		targetStation, err := m.cache.GetStation(stationID)
+		if err != nil {
 			log.Printf("Station %d not found in API response", stationID)
 			continue
 		}

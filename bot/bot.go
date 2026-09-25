@@ -6,22 +6,22 @@ import (
 	"strings"
 
 	"velov-radar/messages"
-	"velov-radar/monitor"
 	"velov-radar/notifier"
+	"velov-radar/stationcache"
 	"velov-radar/store"
 )
 
 type Bot struct {
 	notifier *notifier.TelegramNotifier
 	store    *store.Store
-	monitor  *monitor.Monitor
+	cache    *stationcache.Cache
 }
 
-func NewBot(notif *notifier.TelegramNotifier, store *store.Store, mon *monitor.Monitor) *Bot {
+func NewBot(notif *notifier.TelegramNotifier, store *store.Store, cache *stationcache.Cache) *Bot {
 	return &Bot{
 		notifier: notif,
 		store:    store,
-		monitor:  mon,
+		cache:    cache,
 	}
 }
 
@@ -85,7 +85,7 @@ func (b *Bot) Listen() {
 }
 
 func (b *Bot) handleAdd(chatID int64, stationID int) {
-	targetStation, err := b.monitor.GetStation(stationID)
+	targetStation, err := b.cache.GetStation(stationID)
 	if err != nil {
 		if err.Error() == "station not found" {
 			b.notifier.SendTo(chatID, messages.ErrStationNotFound(stationID))
@@ -117,7 +117,7 @@ func (b *Bot) handleList(chatID int64) {
 	var lines []string
 	lines = append(lines, messages.MsgListHeader)
 	for _, stationID := range stations {
-		st, err := b.monitor.GetStation(stationID)
+		st, err := b.cache.GetStation(stationID)
 		if err != nil {
 			lines = append(lines, messages.MsgListStationUnavailable(stationID))
 		} else {

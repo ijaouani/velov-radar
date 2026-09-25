@@ -8,6 +8,7 @@ import (
 	"velov-radar/config"
 	"velov-radar/monitor"
 	"velov-radar/notifier"
+	"velov-radar/stationcache"
 	"velov-radar/store"
 	"velov-radar/velov"
 )
@@ -31,15 +32,16 @@ func main() {
 	}
 
 	client := velov.NewClient()
+	cache := stationcache.NewCache(client)
 
 	// Poll every 1 minute
-	mon := monitor.NewMonitor(client, notif, userStore, 60*time.Second)
+	mon := monitor.NewMonitor(cache, notif, userStore, 60*time.Second)
 
 	log.Printf("Monitoring started...")
 	go mon.Start()
 
 	// Initialize the Telegram Bot Handler
-	telegramBot := bot.NewBot(notif, userStore, mon)
+	telegramBot := bot.NewBot(notif, userStore, cache)
 
 	// Listen for incoming telegram messages (blocking call)
 	telegramBot.Listen()

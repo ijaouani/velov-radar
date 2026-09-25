@@ -29,7 +29,7 @@ func MsgMonitoringWithoutStatus(stationID int) string {
 }
 
 func MsgMonitoringWithStatus(name string, elec, meca int) string {
-	return fmt.Sprintf("✅ Now monitoring station %s.\n\nCurrent availability:\n⚡ Electric: %d\n🚲 Mechanical: %d", name, elec, meca)
+	return fmt.Sprintf("✅ Now monitoring station %s.\n\nCurrent availability:\n⚡ Electric: %d\n🦵 Mechanical: %d", name, elec, meca)
 }
 
 func MsgListStationUnavailable(stationID int) string {
@@ -37,7 +37,7 @@ func MsgListStationUnavailable(stationID int) string {
 }
 
 func MsgListStation(name string, elec, meca int) string {
-	return fmt.Sprintf("• %s\n  ⚡ %d | 🚲 %d", name, elec, meca)
+	return fmt.Sprintf("• %s\n  ⚡ %d | 🦵 %d", name, elec, meca)
 }
 
 // Monitor notifications
